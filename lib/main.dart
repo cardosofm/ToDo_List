@@ -17,16 +17,22 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  @override
-  void initState() {
-    super.initState();
-    setState(() {
-      _readData().then((data) => _todoList = json.decode(data));
-    });
-  }
+
 
   List _todoList = [];
   Map<String, dynamic> _lastRemoved;
+
+  //override para trazer os itens quando o app for aberto
+  @override
+  void initState() {
+    super.initState();
+    _readData().then((data) {
+      setState(() {
+        _todoList = json.decode(data);
+      });
+    });
+  }
+
   int _lastRemovedPos;
 
   final txtTaskController = TextEditingController();
@@ -37,21 +43,55 @@ class _HomeState extends State<Home> {
       newToDo["title"] = txtTaskController.text;
       newToDo["checked"] = false;
       _todoList.add(newToDo);
-      _showToast(txtTaskController.text);
+      _showToastBlue("${txtTaskController.text} has been added");
       txtTaskController.text = "";
       _saveData();
     });
   }
 
-  void _showToast(String msg) {
+//Toast para mensagens
+  void _showToastBlue(String msg) {
     Fluttertoast.showToast(
         msg: msg,
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.CENTER,
         timeInSecForIosWeb: 1,
-        backgroundColor: Colors.indigo,
+        backgroundColor: Colors.blue,
         textColor: Colors.white,
         fontSize: 16.0);
+  }
+
+//Toast para warnings
+  void _showToastRed(String msg) {
+    Fluttertoast.showToast(
+        msg: msg,
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.CENTER,
+        timeInSecForIosWeb: 1,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+        fontSize: 16.0);
+  }
+
+  //função para ordenar os itens da lista
+  Future<Null> _refreshList() async {
+    await Future.delayed(Duration(seconds: 1));
+    // fazendo ordenação usando uma função de comparação passando dois argumentos
+    // esse comando percorre a lista executando a função de checagem que
+    // será retornado 1 se A>B, 0 se A=B, -1 se A<B
+    // lembrando que A e B serão listas
+    setState(() {
+      _todoList.sort((a, b) {
+        if (a["checked"] && !b["checked"])
+          return 1;
+        else if (!a["checked"] && b["checked"])
+          return -1;
+        else
+          return 0;
+      });
+      _saveData();
+    });
+    return null;
   }
 
   @override
@@ -72,7 +112,7 @@ class _HomeState extends State<Home> {
                     controller: txtTaskController,
                     decoration: InputDecoration(
                       labelStyle: TextStyle(color: Colors.blue),
-                      labelText: "Task name",
+                      labelText: "Task",
                       helperText: "Insert a new task",
                     ),
                   ),
@@ -84,9 +124,8 @@ class _HomeState extends State<Home> {
                     child: Text("Add"),
                     color: Colors.blue,
                     onPressed: () {
-
                       if (txtTaskController.text.trim() == "") {
-                        _showToast("Empty task cannot be inserted!");
+                        _showToastRed("Empty task cannot be inserted!");
                       } else {
                         _addTodo();
                       }
@@ -97,11 +136,15 @@ class _HomeState extends State<Home> {
             ),
           ),
           Expanded(
-            child: ListView.builder(
-                padding: EdgeInsets.only(top: 8.0),
-                itemCount: _todoList.length,
-                itemBuilder: buildItem),
-          )
+            child: RefreshIndicator(
+              // função para ordenar os itens da lista
+              onRefresh: _refreshList,
+              child: ListView.builder(
+                  padding: EdgeInsets.only(top: 8.0),
+                  itemCount: _todoList.length,
+                  itemBuilder: buildItem),
+            ),
+          ),
         ],
       ),
     );
@@ -122,7 +165,7 @@ class _HomeState extends State<Home> {
       ),
       direction: DismissDirection.startToEnd,
       child: CheckboxListTile(
-        title: Text(_todoList[index]["title"]),
+        title: Text(_todoList[index]["title"] ?? "No Data"),
         value: _todoList[index]["checked"],
         secondary: CircleAvatar(
           child: Icon(_todoList[index]["checked"] ? Icons.check : Icons.error),
@@ -135,12 +178,34 @@ class _HomeState extends State<Home> {
         },
       ),
       onDismissed: (direction) {
-        setState(() {
-          _lastRemoved = Map.from(_todoList[index]);
-          _lastRemovedPos = index;
-          _todoList.removeAt(index);
-          _saveData();
-        });
+        setState(
+          () {
+            _lastRemoved = Map.from(_todoList[index]);
+            _lastRemovedPos = index;
+            _todoList.removeAt(index);
+            _saveData();
+
+            final snack = SnackBar(
+              content: Text("${_lastRemoved["title"]} has been removed"),
+              action: SnackBarAction(
+                label: "Desmiss",
+                onPressed: () {
+                  setState(() {
+                    // retornando o elemento de volta a lista no mesmo lugar
+                    _todoList.insert(_lastRemovedPos, _lastRemoved);
+                    _saveData();
+                  });
+                },
+              ),
+              // configurando a duração do snack bar
+              duration: Duration(seconds: 5),
+            );
+            // removendo a snack bar anterior para não criar uma pilha de snackbar
+            Scaffold.of(context).removeCurrentSnackBar();
+            // chamando a snack bar
+            Scaffold.of(context).showSnackBar(snack);
+          },
+        );
       },
     );
   }
