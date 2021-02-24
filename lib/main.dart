@@ -72,7 +72,7 @@ class _HomeState extends State<Home> {
                     controller: txtTaskController,
                     decoration: InputDecoration(
                       labelStyle: TextStyle(color: Colors.blue),
-                      labelText: "Task",
+                      labelText: "Task name",
                       helperText: "Insert a new task",
                     ),
                   ),
